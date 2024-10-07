@@ -4,8 +4,8 @@
 #include <stdlib.h>
 #include <sys/resource.h>
 #include <xmmintrin.h> // Para SSE
-#define _GNU_SOURCE
 
+#define _GNU_SOURCE
 #define TABLE_SIZE 1024
 #define MAX_VALUE 1000.0f
 
