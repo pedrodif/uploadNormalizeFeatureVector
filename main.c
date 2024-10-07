@@ -15,7 +15,7 @@ float lookup_table[TABLE_SIZE];
 void init_lookup_table() {
     for (int i = 0; i < TABLE_SIZE; i++) {
         float x = (float)i / (float)(TABLE_SIZE - 1) * MAX_VALUE;
-        lookup_table[i] = 1.0f / sqrt(x);
+        lookup_table[i] = (x == 0) ? 0 : 1.0f / sqrt(x); // Evita divisão por zero
     }
 }
 
@@ -31,17 +31,19 @@ void normalize_feature_vector_lookup(float* features, int length) {
 
 // Função de normalização usando Newton-Raphson (Quake III)
 float fast_inverse_sqrt(float x) {
+    if (x <= 0) return 0; // Evita raiz quadrada de número não positivo
+
     long i;
     float x2, y;
     x2 = x * 0.5f;
     y = x; // Estimativa inicial
 
-    i = * ( long * ) &y; // Manipulação de bits
-    i = 0x5f3759df - ( i >> 1 ); // Aproximação
-    y = * ( float * ) &i;
+    i = *(long *)&y; // Manipulação de bits
+    i = 0x5f3759df - (i >> 1); // Aproximação
+    y = *(float *)&i;
 
     // Uma iteração de Newton-Raphson
-    y = y * ( 1.5f - ( x2 * y * y ) );
+    y = y * (1.5f - (x2 * y * y));
 
     return y;
 }
@@ -84,9 +86,18 @@ float** read_csv(const char* filename, int* num_elements, int* num_dimensions) {
     }
     rewind(file);
 
-    float** features = (float*)malloc(*num_elements * sizeof(float));
+    // Alocação correta de memória para features
+    float** features = (float**)malloc(*num_elements * sizeof(float*));
+    if (!features) {
+        perror("Falha na alocação de memória para features");
+        exit(EXIT_FAILURE);
+    }
     for (int i = 0; i < *num_elements; i++) {
         features[i] = (float*)malloc(*num_dimensions * sizeof(float));
+        if (!features[i]) {
+            perror("Falha na alocação de memória para features[i]");
+            exit(EXIT_FAILURE);
+        }
     }
 
     int i = 0;
@@ -119,10 +130,10 @@ int main() {
     // Nomes dos arquivos CSV
     const char* files[] = {
         "arquivoa.csv",
-        "arquivob.csv",
-        "arquivoc.csv",
-        "arquivod.csv",
-        "arquivoe.csv"
+        //"arquivob.csv",
+        //"arquivoc.csv",
+        //"arquivod.csv",
+        //"arquivoe.csv"
     };
     const int num_files = sizeof(files) / sizeof(files[0]);
 
