@@ -40,7 +40,7 @@ O programa irá processar os dados do arquivo CSV selecionado, aplicando os trê
 
 ### Personalização
 
-##Para processar outros arquivos CSV, edite a lista de arquivos na função `main`, comentando os arquivos que não deseja processar.
+**__Para processar outros arquivos CSV, edite a lista de arquivos na função `main`, comentando os arquivos que não deseja processar.__**
 
 ### Notas
 
