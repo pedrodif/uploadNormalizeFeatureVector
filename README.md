@@ -30,6 +30,8 @@ Após a compilação, você pode executar o programa com o seguinte comando:
 
 Os arquivos CSV de entrada já estão incluídos no projeto e foram nomeados de `arquivoa.csv` a `arquivoe.csv`. Sugerimos que leia um arquivo por vez em cada execução. Para isso, comente os demais arquivos no código, deixando apenas o arquivo que deseja processar.
 
+### Padrão dos testes
+
 O programa irá processar os dados do arquivo CSV selecionado, aplicando os três métodos de normalização em sequência, e apresentará o uso de recursos para cada método, incluindo:
 
 - **Tempo de Usuário:** Tempo que o CPU dedicou exclusivamente ao processo.
@@ -38,7 +40,7 @@ O programa irá processar os dados do arquivo CSV selecionado, aplicando os trê
 
 ### Personalização
 
-Para processar outros arquivos CSV, edite a lista de arquivos na função `main`, comentando os arquivos que não deseja processar.
+##Para processar outros arquivos CSV, edite a lista de arquivos na função `main`, comentando os arquivos que não deseja processar.
 
 ### Notas
 
