@@ -3,30 +3,72 @@
 #include <math.h>
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <xmmintrin.h> // Para SSE
 #define _GNU_SOURCE
 
-// Função naïve para normalizar um vetor de características
-void normalize_feature_vector(float* features, int length) {
-    float sum = 0.0f;
-    for (int i = 0; i < length; i++) {
-        sum += features[i] * features[i];
-    }
-    float inv_sqrt = 1.0f / sqrt(sum);
+#define TABLE_SIZE 1024
+#define MAX_VALUE 1000.0f
 
+float lookup_table[TABLE_SIZE];
+
+// Inicializa a tabela de consulta
+void init_lookup_table() {
+    for (int i = 0; i < TABLE_SIZE; i++) {
+        float x = (float)i / (float)(TABLE_SIZE - 1) * MAX_VALUE;
+        lookup_table[i] = 1.0f / sqrt(x);
+    }
+}
+
+// Função de normalização usando Lookup Table
+void normalize_feature_vector_lookup(float* features, int length) {
     for (int i = 0; i < length; i++) {
+        int index = (int)(features[i] * (TABLE_SIZE - 1) / MAX_VALUE);
+        if (index >= 0 && index < TABLE_SIZE) {
+            features[i] *= lookup_table[index];
+        }
+    }
+}
+
+// Função de normalização usando Newton-Raphson (Quake III)
+float fast_inverse_sqrt(float x) {
+    long i;
+    float x2, y;
+    x2 = x * 0.5f;
+    y = x; // Estimativa inicial
+
+    i = * ( long * ) &y; // Manipulação de bits
+    i = 0x5f3759df - ( i >> 1 ); // Aproximação
+    y = * ( float * ) &i;
+
+    // Uma iteração de Newton-Raphson
+    y = y * ( 1.5f - ( x2 * y * y ) );
+
+    return y;
+}
+
+void normalize_feature_vector_quake(float* features, int length) {
+    for (int i = 0; i < length; i++) {
+        float inv_sqrt = fast_inverse_sqrt(features[i]);
         features[i] *= inv_sqrt;
     }
 }
 
-// Função para ler dados de um arquivo CSV
+// Função de normalização usando SSE
+void normalize_feature_vector_sse(float* features, int length) {
+    for (int i = 0; i < length; i += 4) {
+        __m128 data = _mm_loadu_ps(&features[i]);
+        __m128 inv_sqrt = _mm_rsqrt_ps(data);
+        _mm_storeu_ps(&features[i], _mm_mul_ps(data, inv_sqrt));
+    }
+}
+
 float** read_csv(const char* filename, int* num_elements, int* num_dimensions) {
     FILE* file = fopen(filename, "r");
     if (!file) {
-        perror("Failed to open file");
+        perror("Falha ao abrir o arquivo");
         exit(EXIT_FAILURE);
     }
 
-    // Determine the number of elements and dimensions
     *num_elements = 0;
     *num_dimensions = 0;
     char line[1024];
@@ -42,13 +84,11 @@ float** read_csv(const char* filename, int* num_elements, int* num_dimensions) {
     }
     rewind(file);
 
-    // Allocate memory for the features
-    float** features = (float**)malloc(*num_elements * sizeof(float*));
+    float** features = (float*)malloc(*num_elements * sizeof(float));
     for (int i = 0; i < *num_elements; i++) {
         features[i] = (float*)malloc(*num_dimensions * sizeof(float));
     }
 
-    // Read the data
     int i = 0;
     while (fgets(line, sizeof(line), file)) {
         int j = 0;
@@ -64,48 +104,74 @@ float** read_csv(const char* filename, int* num_elements, int* num_dimensions) {
     return features;
 }
 
-// Função para medir o tempo de execução usando a biblioteca 'resources'
 void get_resource_usage(struct rusage* usage) {
     getrusage(RUSAGE_SELF, usage);
 }
 
 void print_resource_usage(const char* label, struct rusage* usage) {
     printf("%s\n", label);
-    printf("User time: %ld.%06ld seconds\n", usage->ru_utime.tv_sec, usage->ru_utime.tv_usec);
-    printf("System time: %ld.%06ld seconds\n", usage->ru_stime.tv_sec, usage->ru_stime.tv_usec);
-    printf("Maximum resident set size: %ld kilobytes\n", usage->ru_maxrss);
+    printf("Tempo de usuário: %ld.%06ld segundos\n", usage->ru_utime.tv_sec, usage->ru_utime.tv_usec);
+    printf("Tempo de sistema: %ld.%06ld segundos\n", usage->ru_stime.tv_sec, usage->ru_stime.tv_usec);
+    printf("Tamanho máximo do conjunto residente: %ld kilobytes\n", usage->ru_maxrss);
 }
 
 int main() {
-    int num_elements, num_dimensions;
-    // Especificando o caminho correto para o arquivo CSV
-    float** features = read_csv("mainfolder/arquivo.csv", &num_elements, &num_dimensions);
+    // Nomes dos arquivos CSV
+    const char* files[] = {
+        "arquivoa.csv",
+        "arquivob.csv",
+        "arquivoc.csv",
+        "arquivod.csv",
+        "arquivoe.csv"
+    };
+    const int num_files = sizeof(files) / sizeof(files[0]);
 
-    struct rusage start_usage, end_usage;
-    
-    get_resource_usage(&start_usage);
-    for (int i = 0; i < num_elements; i++) {
-        normalize_feature_vector(features[i], num_dimensions);
-    }
-    get_resource_usage(&end_usage);
+    // Inicializa a tabela de consulta
+    init_lookup_table();
 
-    printf("Normalized features:\n");
-    for (int i = 0; i < num_elements; i++) {
-        for (int j = 0; j < num_dimensions; j++) {
-            printf("%f ", features[i][j]);
+    for (int f = 0; f < num_files; f++) {
+        printf("Lendo arquivo: %s\n", files[f]); // Mensagem de depuração
+        int num_elements, num_dimensions;
+        float** features = read_csv(files[f], &num_elements, &num_dimensions);
+
+        struct rusage start_usage, end_usage;
+
+        // Normalização com Lookup Table
+        get_resource_usage(&start_usage);
+        for (int i = 0; i < num_elements; i++) {
+            normalize_feature_vector_lookup(features[i], num_dimensions);
         }
-        printf("\n");
-    }
+        get_resource_usage(&end_usage);
+        printf("Características normalizadas (Tabela de Consulta) - %s:\n", files[f]);
+        print_resource_usage("Uso de Recursos na Tabela de Consulta (Início)", &start_usage);
+        print_resource_usage("Uso de Recursos na Tabela de Consulta (Fim)", &end_usage);
 
-    printf("Execution time and resource usage:\n");
-    print_resource_usage("Start Usage", &start_usage);
-    print_resource_usage("End Usage", &end_usage);
+        // Normalização com Quake III
+        get_resource_usage(&start_usage);
+        for (int i = 0; i < num_elements; i++) {
+            normalize_feature_vector_quake(features[i], num_dimensions);
+        }
+        get_resource_usage(&end_usage);
+        printf("Características normalizadas (Quake III) - %s:\n", files[f]);
+        print_resource_usage("Uso de Recursos no Quake III (Início)", &start_usage);
+        print_resource_usage("Uso de Recursos no Quake III (Fim)", &end_usage);
 
-    // Free allocated memory
-    for (int i = 0; i < num_elements; i++) {
-        free(features[i]);
+        // Normalização com SSE
+        get_resource_usage(&start_usage);
+        for (int i = 0; i < num_elements; i++) {
+            normalize_feature_vector_sse(features[i], num_dimensions);
+        }
+        get_resource_usage(&end_usage);
+        printf("Características normalizadas (SSE) - %s:\n", files[f]);
+        print_resource_usage("Uso de Recursos no SSE (Início)", &start_usage);
+        print_resource_usage("Uso de Recursos no SSE (Fim)", &end_usage);
+
+        // Liberar memória alocada
+        for (int i = 0; i < num_elements; i++) {
+            free(features[i]);
+        }
+        free(features);
     }
-    free(features);
 
     return 0;
 }
